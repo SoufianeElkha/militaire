@@ -13,3 +13,6 @@ main.o: main.c
 
 clean:
 	rm -f main.o main
+
+run:
+	./main
