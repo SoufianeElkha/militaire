@@ -7,27 +7,16 @@
 #include <time.h>
 #include <unistd.h>
 
-// Sem for producer
-sem_t sem_driver;
-sem_t sem_military;
-sem_t sem_material;
+sem_t sem_driver, sem_military, sem_material;
+sem_t sem_plane, sem_truck, sem_boat;
 
-// Sem for consumer
-sem_t sem_plane;
-sem_t sem_truck;
-sem_t sem_boat;
+pthread_mutex_t mutex_convoi_id, mutex_convois_processed;
+pthread_mutex_t mutex_buffer;
 
 int convoi_id = 0;
 int convois_processed = 0;
 int convois_terminati = 0;
-pthread_mutex_t mutex_convois_terminati;
-pthread_mutex_t mutex_convoi_count;
-pthread_mutex_t mutex_convois_processed;
-pthread_mutex_t mutex_convoi_id;
-pthread_mutex_t mutex_delete;
-pthread_mutex_t mutex_buffer;
-
-int buffer[6][5] = {0}; // Initializing all values to 0
+int buffer[6][5] = {0};
 
 void put(int weight, int range, int col_index)
 {
@@ -38,25 +27,25 @@ void put(int weight, int range, int col_index)
     int timeToWait = (rand() % 2 == 0) ? 8 : 12;
     printf("time to wait : %d\n", timeToWait);
     usleep(1000 * timeToWait);
+    pthread_mutex_lock(&mutex_buffer);
     if (col_index == 0) // Driver
     {
-        if (driver_count >= 200)
+        if (driver_count >= 300)
             return;
         driver_count++;
     }
     else if (col_index == 1) // Military
     {
-        if (military_count >= 200)
+        if (military_count >= 300)
             return;
         military_count++;
     }
     else if (col_index == 2) // Material
     {
-        if (material_count >= 200)
+        if (material_count >= 300)
             return;
         material_count++;
     }
-    pthread_mutex_lock(&mutex_buffer);
 
     for (int i = 0; i < 6; i++)
     {
@@ -114,14 +103,12 @@ void put(int weight, int range, int col_index)
     }
     pthread_mutex_unlock(&mutex_buffer);
 }
-
 void get(void *arg)
 {
     char *name = (char *)arg;
     int convoi_nb = 201;
     int tmp_i = -1;
 
-    pthread_mutex_lock(&mutex_delete);
     // Find the appropriate convoy
     for (int i = 0; i < 6; i++)
     {
@@ -153,28 +140,24 @@ void get(void *arg)
         {
             buffer[tmp_i][i] = 0;
         }
-
         // Release the semaphores
         sem_post(&sem_driver);
         sem_post(&sem_military);
         sem_post(&sem_material);
-
         // Increase the count of processed convoys
         pthread_mutex_lock(&mutex_convois_processed);
         convois_processed++;
         printf("Convoi terminati: %d", convois_processed);
         pthread_mutex_unlock(&mutex_convois_processed);
     }
-    pthread_mutex_unlock(&mutex_delete);
 }
 
+// Aggiorna la funzione consumer
 void *consumer(void *arg)
 {
     char *name = (char *)arg;
-
     while (true)
     {
-
         if (strcmp(name, "plane") == 0)
         {
             sem_wait(&sem_plane);
@@ -193,23 +176,25 @@ void *consumer(void *arg)
             get("boat");
             printf("Boat is going\n");
         }
-        pthread_mutex_lock(&mutex_convois_terminati);
-        if (convois_terminati >= 200)
-        {
-            pthread_mutex_unlock(&mutex_convois_terminati);
-            break;
-        }
-        pthread_mutex_unlock(&mutex_convois_terminati);
     }
 }
 
+// Aggiorna la funzione producer
 void *producer(void *arg)
 {
     char *name = (char *)arg;
 
-    // Attente du sémaphore approprié
-    for (int k = 0; k < 200; k++)
+    while (true)
     {
+        pthread_mutex_lock(&mutex_convois_processed);
+        if (convois_processed >= 200)
+        {
+            pthread_mutex_unlock(&mutex_convois_processed);
+            break;
+        }
+
+        pthread_mutex_unlock(&mutex_convois_processed);
+
         if (strcmp(name, "driver") == 0)
         {
             sem_wait(&sem_driver);
@@ -225,16 +210,14 @@ void *producer(void *arg)
             sem_wait(&sem_material);
             put(25000, 24500, 2);
         }
-
+        printf("PILOTE-MILITARY-MATERIAL-TOTAL-NUMERO\n");
         for (int i = 0; i < 6; i++)
         {
             for (int j = 0; j < 5; j++)
-                printf("%d ", buffer[i][j]);
+                printf("%7d", buffer[i][j]);
             printf("\n");
         }
-        printf("\n");
-        printf("\n");
-        printf("\n");
+        printf("\n\n");
     }
 
     printf("Starting %s producer\n", name);
@@ -248,25 +231,20 @@ void *producer(void *arg)
         sem_post(&sem_military);
     else if (strcmp(name, "material") == 0)
         sem_post(&sem_material);
-
-    pthread_exit(NULL);
 }
 
 int main()
 {
 
     pthread_mutex_init(&mutex_convoi_id, NULL);
-    pthread_mutex_init(&mutex_delete, NULL);
-    pthread_mutex_init(&mutex_convoi_count, NULL);
     pthread_mutex_init(&mutex_convois_processed, NULL);
-    pthread_mutex_init(&mutex_convois_terminati, NULL);
     pthread_mutex_init(&mutex_buffer, NULL);
 
     // Loop to print all values in the buffer
     for (int i = 0; i < 6; i++)
     {
         for (int j = 0; j < 4; j++)
-            printf("%d ", buffer[i][j]);
+            printf("%7d ", buffer[i][j]);
 
         printf("\n");
     }
@@ -339,13 +317,10 @@ int main()
     sem_destroy(&sem_boat);
 
     pthread_mutex_destroy(&mutex_convoi_id);
-    pthread_mutex_destroy(&mutex_delete);
-    pthread_mutex_destroy(&mutex_convoi_count);
     pthread_mutex_destroy(&mutex_convois_processed);
-    pthread_mutex_destroy(&mutex_convois_terminati);
     pthread_mutex_destroy(&mutex_buffer);
 
-    printf("All producer threads have exited\n");
+    printf("\n#############################################################################\nAll producer threads have exited\n");
 
     return 0;
 }
