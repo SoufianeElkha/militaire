@@ -7,11 +7,28 @@
 #include <time.h>
 #include <unistd.h>
 
+#define NUM_PRODUCERS 3
+#define NUM_CONSUMERS 3
+
 sem_t sem_driver, sem_military, sem_material;
 sem_t sem_plane, sem_truck, sem_boat;
 
 pthread_mutex_t mutex_convoi_id, mutex_convois_processed;
 pthread_mutex_t mutex_buffer;
+
+typedef enum
+{
+    DRIVER,
+    MILITARY,
+    MATERIAL
+} producer_type;
+
+typedef enum
+{
+    PLANE,
+    TRUCK,
+    BOAT
+} consumer_type;
 
 int convoi_id = 0;
 int convois_processed = 0;
@@ -21,52 +38,27 @@ bool done = false;
 void put(int weight, int range, int col_index)
 {
     int first_empty_row = -1;
-    static int military_count = 0;
-    static int driver_count = 0;
-    static int material_count = 0;
+    static int counts[3] = {0, 0, 0}; // 0: driver_count, 1: military_count, 2: material_count
     int timeToWait = (rand() % 2 == 0) ? 8 : 12;
     usleep(1000 * timeToWait);
     pthread_mutex_lock(&mutex_buffer);
 
-    if (col_index == 0)
-    { // Driver
-        if (driver_count >= 300)
-        {
-            pthread_mutex_unlock(&mutex_buffer);
-            return;
-        }
-        driver_count++;
+    if (counts[col_index] >= 300)
+    {
+        pthread_mutex_unlock(&mutex_buffer);
+        return;
     }
-    else if (col_index == 1)
-    { // Military
-        if (military_count >= 300)
-        {
-            pthread_mutex_unlock(&mutex_buffer);
-            return;
-        }
-        military_count++;
-    }
-    else if (col_index == 2)
-    { // Material
-        if (material_count >= 300)
-        {
-            pthread_mutex_unlock(&mutex_buffer);
-            return;
-        }
-        material_count++;
-    }
+    counts[col_index]++;
 
     for (int i = 0; i < 6; i++)
     {
-        if (buffer[i][0] != 0 && buffer[i][1] != 0 && buffer[i][2] != 0)
+        if (buffer[i][0] == 0 || buffer[i][1] == 0 || buffer[i][2] == 0)
         {
-            continue;
-        }
-
-        if (buffer[i][col_index] == 0)
-        {
-            first_empty_row = i;
-            break;
+            if (buffer[i][col_index] == 0)
+            {
+                first_empty_row = i;
+                break;
+            }
         }
     }
 
@@ -104,6 +96,27 @@ void get(const char *name)
 {
     int convoi_nb = 201;
     int tmp_i = -1;
+    int lower_bound, upper_bound;
+
+    if (strcmp(name, "plane") == 0)
+    {
+        lower_bound = 0;
+        upper_bound = 10001;
+    }
+    else if (strcmp(name, "truck") == 0)
+    {
+        lower_bound = 10001;
+        upper_bound = 30001;
+    }
+    else if (strcmp(name, "boat") == 0)
+    {
+        lower_bound = 30001;
+        upper_bound = 1e9;
+    }
+    else
+    {
+        return;
+    }
 
     pthread_mutex_lock(&mutex_buffer);
 
@@ -112,19 +125,11 @@ void get(const char *name)
     {
         if (buffer[i][0] != 0 && buffer[i][1] != 0 && buffer[i][2] != 0) // Check if the row is complete
         {
-            if (strcmp(name, "plane") == 0 && buffer[i][3] < 10001 && buffer[i][4] < convoi_nb && buffer[i][4] > 0)
+            int current_weight = buffer[i][3];
+            int current_convoi_nb = buffer[i][4];
+            if (current_weight >= lower_bound && current_weight < upper_bound && current_convoi_nb < convoi_nb && current_convoi_nb > 0)
             {
-                convoi_nb = buffer[i][4];
-                tmp_i = i;
-            }
-            else if (strcmp(name, "truck") == 0 && buffer[i][3] >= 10001 && buffer[i][3] < 30001 && buffer[i][4] < convoi_nb && buffer[i][4] > 0)
-            {
-                convoi_nb = buffer[i][4];
-                tmp_i = i;
-            }
-            else if (strcmp(name, "boat") == 0 && buffer[i][3] >= 30001 && buffer[i][4] < convoi_nb && buffer[i][4] > 0)
-            {
-                convoi_nb = buffer[i][4];
+                convoi_nb = current_convoi_nb;
                 tmp_i = i;
             }
         }
@@ -134,14 +139,13 @@ void get(const char *name)
     if (tmp_i != -1)
     {
         // Clear the buffer for the convoy
-        for (int i = 0; i < 5; i++)
-        {
-            buffer[tmp_i][i] = 0;
-        }
+        memset(buffer[tmp_i], 0, 5 * sizeof(int));
+
         // Release the semaphores
         sem_post(&sem_driver);
         sem_post(&sem_military);
         sem_post(&sem_material);
+
         // Increase the count of processed convoys
         pthread_mutex_lock(&mutex_convois_processed);
         convois_processed++;
@@ -156,34 +160,71 @@ void get(const char *name)
 void *consumer(void *arg)
 {
     const char *name = (const char *)arg;
+    consumer_type c_type;
+
+    if (strcmp(name, "plane") == 0)
+        c_type = PLANE;
+    else if (strcmp(name, "truck") == 0)
+        c_type = TRUCK;
+    else if (strcmp(name, "boat") == 0)
+        c_type = BOAT;
+    else
+        return NULL;
+
     while (!done)
     {
-        if (strcmp(name, "plane") == 0)
+        sem_t *semaphore;
+        const char *c_name;
+
+        switch (c_type)
         {
-            sem_wait(&sem_plane);
-            get("plane");
-            printf("Plane is going\n");
+        case PLANE:
+            semaphore = &sem_plane;
+            c_name = "plane";
+            break;
+        case TRUCK:
+            semaphore = &sem_truck;
+            c_name = "truck";
+            break;
+        case BOAT:
+            semaphore = &sem_boat;
+            c_name = "boat";
+            break;
         }
-        else if (strcmp(name, "truck") == 0)
-        {
-            sem_wait(&sem_truck);
-            get("truck");
-            printf("Truck is going\n");
-        }
-        else if (strcmp(name, "boat") == 0)
-        {
-            sem_wait(&sem_boat);
-            get("boat");
-            printf("Boat is going\n");
-        }
+
+        sem_wait(semaphore);
+        get(c_name);
+        printf("%s is going\n", c_name);
     }
+
     return NULL;
 }
 
-// Aggiorna la funzione producer
+void print_buffer()
+{
+    printf("PILOTE-MILITARY-MATERIAL-TOTAL-NUMERO\n");
+    for (int i = 0; i < 6; i++)
+    {
+        for (int j = 0; j < 5; j++)
+            printf("%7d", buffer[i][j]);
+        printf("\n");
+    }
+    printf("\n\n");
+}
+
 void *producer(void *arg)
 {
     char *name = (char *)arg;
+    producer_type p_type;
+
+    if (strcmp(name, "driver") == 0)
+        p_type = DRIVER;
+    else if (strcmp(name, "military") == 0)
+        p_type = MILITARY;
+    else if (strcmp(name, "material") == 0)
+        p_type = MATERIAL;
+    else
+        return NULL;
 
     while (true)
     {
@@ -194,129 +235,94 @@ void *producer(void *arg)
             done = true;
             printf("NUMERO MASSIMO RAGGIUNTO\n");
             pthread_mutex_unlock(&mutex_convois_processed);
-            // Destruction des sémaphores
+            break;
+        }
+        pthread_mutex_unlock(&mutex_convois_processed);
+
+        int weight, range, col_index;
+        sem_t *semaphore;
+
+        switch (p_type)
+        {
+        case DRIVER:
+            weight = 80;
+            range = 20;
+            col_index = 0;
+            semaphore = &sem_driver;
+            break;
+        case MILITARY:
+            weight = 8000;
+            range = 7000;
+            col_index = 1;
+            semaphore = &sem_military;
+            break;
+        case MATERIAL:
+            weight = 25000;
+            range = 24500;
+            col_index = 2;
+            semaphore = &sem_material;
             break;
         }
 
-        pthread_mutex_unlock(&mutex_convois_processed);
+        sem_wait(semaphore);
+        put(weight, range, col_index);
 
-        if (strcmp(name, "driver") == 0)
-        {
-            sem_wait(&sem_driver);
-            put(80, 20, 0);
-        }
-        else if (strcmp(name, "military") == 0)
-        {
-            sem_wait(&sem_military);
-            put(8000, 7000, 1);
-        }
-        else if (strcmp(name, "material") == 0)
-        {
-            sem_wait(&sem_material);
-            put(25000, 24500, 2);
-        }
-        printf("PILOTE-MILITARY-MATERIAL-TOTAL-NUMERO\n");
-        for (int i = 0; i < 6; i++)
-        {
-            for (int j = 0; j < 5; j++)
-                printf("%7d", buffer[i][j]);
-            printf("\n");
-        }
-        printf("\n\n");
+        print_buffer();
         printf("Exiting %s producer\n", name);
     }
 
-    // Libération du sémaphore approprié
-    if (strcmp(name, "driver") == 0)
-        sem_post(&sem_driver);
-    else if (strcmp(name, "military") == 0)
-        sem_post(&sem_military);
-    else if (strcmp(name, "material") == 0)
-        sem_post(&sem_material);
+    // Release the appropriate semaphore
+    sem_post(&sem_driver);
+    sem_post(&sem_military);
+    sem_post(&sem_material);
 }
 
 int main()
 {
-
     pthread_mutex_init(&mutex_convoi_id, NULL);
     pthread_mutex_init(&mutex_convois_processed, NULL);
     pthread_mutex_init(&mutex_buffer, NULL);
 
-    // Loop to print all values in the buffer
-    for (int i = 0; i < 6; i++)
-    {
-        for (int j = 0; j < 4; j++)
-            printf("%7d ", buffer[i][j]);
+    sem_t *producer_sems[NUM_PRODUCERS] = {&sem_driver, &sem_military, &sem_material};
+    sem_t *consumer_sems[NUM_CONSUMERS] = {&sem_plane, &sem_truck, &sem_boat};
 
-        printf("\n");
+    const char *producer_names[] = {"driver", "military", "material"};
+    const char *consumer_names[] = {"plane", "truck", "boat"};
+
+    pthread_t producer_threads[NUM_PRODUCERS], consumer_threads[NUM_CONSUMERS];
+
+    // Initialize semaphores and create producer and consumer threads
+    for (int i = 0; i < NUM_PRODUCERS; ++i)
+    {
+        if (sem_init(producer_sems[i], 0, 6) != 0)
+        {
+            printf("Error initializing semaphore for %s producer\n", producer_names[i]);
+            exit(EXIT_FAILURE);
+        }
+
+        if (sem_init(consumer_sems[i], 0, 0) != 0)
+        {
+            printf("Error initializing semaphore for %s consumer\n", consumer_names[i]);
+            exit(EXIT_FAILURE);
+        }
+
+        pthread_create(&producer_threads[i], NULL, producer, (void *)producer_names[i]);
+        pthread_create(&consumer_threads[i], NULL, consumer, (void *)consumer_names[i]);
     }
 
-    // Initialisation des sémaphores producer
-    if (sem_init(&sem_driver, 0, 6) != 0)
+    // Join producer and consumer threads
+    for (int i = 0; i < NUM_PRODUCERS; ++i)
     {
-        printf("Error initializing semaphore for driver producer\n");
-        exit(EXIT_FAILURE);
+        pthread_join(producer_threads[i], NULL);
+        pthread_join(consumer_threads[i], NULL);
     }
 
-    if (sem_init(&sem_military, 0, 6) != 0)
+    // Destroy semaphores
+    for (int i = 0; i < NUM_PRODUCERS; ++i)
     {
-        printf("Error initializing semaphore for military producer\n");
-        exit(EXIT_FAILURE);
+        sem_destroy(producer_sems[i]);
+        sem_destroy(consumer_sems[i]);
     }
-
-    if (sem_init(&sem_material, 0, 6) != 0)
-    {
-        printf("Error initializing semaphore for material producer\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Initialisation des sémaphores consumer
-    if (sem_init(&sem_plane, 0, 0) != 0)
-    {
-        printf("Error initializing semaphore for driver producer\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (sem_init(&sem_truck, 0, 0) != 0)
-    {
-        printf("Error initializing semaphore for military producer\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (sem_init(&sem_boat, 0, 0) != 0)
-    {
-        printf("Error initializing semaphore for material producer\n");
-        exit(EXIT_FAILURE);
-    }
-
-    pthread_t prod_driver_thread, prod_military_thread, prod_material_thread, plane_thread, truck_thread, boat_thread;
-
-    // Création des threads producteurs
-    pthread_create(&prod_driver_thread, NULL, producer, "driver");
-    pthread_create(&prod_military_thread, NULL, producer, "military");
-    pthread_create(&prod_material_thread, NULL, producer, "material");
-
-    pthread_create(&plane_thread, NULL, consumer, "plane");
-    pthread_create(&truck_thread, NULL, consumer, "truck");
-    pthread_create(&boat_thread, NULL, consumer, "boat");
-
-    // Attente de la fin des threads producteurs
-    pthread_join(prod_driver_thread, NULL);
-    pthread_join(prod_military_thread, NULL);
-    pthread_join(prod_material_thread, NULL);
-
-    pthread_join(plane_thread, NULL);
-    pthread_join(truck_thread, NULL);
-    pthread_join(boat_thread, NULL);
-
-    // Destruction des sémaphores
-    sem_destroy(&sem_driver);
-    sem_destroy(&sem_military);
-    sem_destroy(&sem_material);
-
-    sem_destroy(&sem_plane);
-    sem_destroy(&sem_truck);
-    sem_destroy(&sem_boat);
 
     pthread_mutex_destroy(&mutex_convoi_id);
     pthread_mutex_destroy(&mutex_convois_processed);
