@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
+#include <unistd.h>
 
 // Sem for producer
 sem_t sem_driver;
@@ -30,6 +31,10 @@ void put(int weight, int range, int col_index)
 
     for (int i = 0; i < 6; i++)
     {
+        if (buffer[i][0] != 0 && buffer[i][1] != 0 && buffer[i][2] != 0)
+        {
+            continue; // AGGIUNTO: controllo per evitare di riempire una riga già piena
+        }
 
         if (buffer[i][col_index] == 0)
         {
@@ -47,13 +52,13 @@ void put(int weight, int range, int col_index)
                     sem_getvalue(&sem_plane, &sem_value);
                     printf("Plane sem: %d\n", sem_value);
                 }
-                else if (buffer[i][3] > 10000 && buffer[i][3] < 30001)
+                else if (buffer[i][3] > 10001 && buffer[i][3] < 30001)
                 {
                     sem_post(&sem_truck);
                     sem_getvalue(&sem_truck, &sem_value);
                     printf("Truck sem: %d\n", sem_value);
                 }
-                else if (buffer[i][3] > 30000)
+                else if (buffer[i][3] > 30001)
                 {
                     sem_post(&sem_boat);
                     sem_getvalue(&sem_boat, &sem_value);
@@ -65,29 +70,8 @@ void put(int weight, int range, int col_index)
     }
 }
 
-void get(void *arg)
-{
-
-    char *name = (char *)arg;
-    int convoi_nb = 300;
-    int tmp_i;
-    // Attente du sémaphore approprié
-    while (true)
-    {
-        if (strcmp(name, "plane") == 0)
-        {
-            for (int i = 0; i < 5; i++)
-            {
-                if (buffer[i][3] < 100000)
-                    if (buffer[i][4] < convoi_nb)
-                    {
-                        convoi_nb = buffer[i][4];
-                        tmp_i = i;
-                        printf("Tmp_i_1 %d", tmp_i);
-                    }
-
-                pthread_mutex_lock(&mutex_delete);
-                for (int i = 0; i < 5; i++)
+/*                pthread_mutex_lock(&mutex_delete);
+                for (int i = 0; i < 6; i++)
                 {
                     buffer[tmp_i][i] = 0;
                     printf("Tmp_i_2 %d", tmp_i);
@@ -96,18 +80,67 @@ void get(void *arg)
                 sem_post(&sem_military);
                 sem_post(&sem_material);
 
-                pthread_mutex_unlock(&mutex_delete);
+                pthread_mutex_unlock(&mutex_delete);*/
+void get(void *arg)
+{
+    char *name = (char *)arg;
+    int convoi_nb = 300;
+    int tmp_i;
 
-                printf("Plane is going\n");
+    pthread_mutex_lock(&mutex_delete); // Spostato: bloccare il mutex prima di leggere dal buffer
+
+    if (strcmp(name, "plane") == 0)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            if (buffer[i][3] < 10001 && buffer[i][4] < convoi_nb)
+            {
+                convoi_nb = buffer[i][4];
+                tmp_i = i;
             }
         }
     }
+    else if (strcmp(name, "truck") == 0)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            if (buffer[i][3] > 10001 && buffer[i][3] < 30001 && buffer[i][4] < convoi_nb)
+            {
+                convoi_nb = buffer[i][4];
+                tmp_i = i;
+            }
+        }
+    }
+    else if (strcmp(name, "boat") == 0)
+    {
+        for (int i = 0; i < 6; i++)
+        {
+            if (buffer[i][3] > 30001 && buffer[i][4] < convoi_nb)
+            {
+                convoi_nb = buffer[i][4];
+                tmp_i = i;
+            }
+        }
+    }
+
+    if (convoi_nb != 300) // Aggiunto: controllo per evitare la cancellazione se non trovato un convoglio appropriato
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            buffer[tmp_i][i] = 0;
+        }
+        sem_post(&sem_driver);
+        sem_post(&sem_military);
+        sem_post(&sem_material);
+    }
+
+    pthread_mutex_unlock(&mutex_delete); // Spostato: sbloccare il mutex dopo aver letto e aggiornato il buffer
 }
+
 void *consumer(void *arg)
 {
     char *name = (char *)arg;
 
-    // Attente du sémaphore approprié
     while (true)
     {
         if (strcmp(name, "plane") == 0)
@@ -119,11 +152,13 @@ void *consumer(void *arg)
         else if (strcmp(name, "truck") == 0)
         {
             sem_wait(&sem_truck);
+            get("truck");
             printf("Truck is going\n");
         }
         else if (strcmp(name, "boat") == 0)
         {
             sem_wait(&sem_boat);
+            get("boat");
             printf("Boat is going\n");
         }
     }
