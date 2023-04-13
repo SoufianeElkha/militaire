@@ -15,8 +15,8 @@ pthread_mutex_t mutex_buffer;
 
 int convoi_id = 0;
 int convois_processed = 0;
-int convois_terminati = 0;
 int buffer[6][5] = {0};
+bool done = false;
 
 void put(int weight, int range, int col_index)
 {
@@ -25,37 +25,44 @@ void put(int weight, int range, int col_index)
     static int driver_count = 0;
     static int material_count = 0;
     int timeToWait = (rand() % 2 == 0) ? 8 : 12;
-    printf("time to wait : %d\n", timeToWait);
     usleep(1000 * timeToWait);
     pthread_mutex_lock(&mutex_buffer);
-    if (col_index == 0) // Driver
-    {
+
+    if (col_index == 0)
+    { // Driver
         if (driver_count >= 300)
+        {
+            pthread_mutex_unlock(&mutex_buffer);
             return;
+        }
         driver_count++;
     }
-    else if (col_index == 1) // Military
-    {
+    else if (col_index == 1)
+    { // Military
         if (military_count >= 300)
+        {
+            pthread_mutex_unlock(&mutex_buffer);
             return;
+        }
         military_count++;
     }
-    else if (col_index == 2) // Material
-    {
+    else if (col_index == 2)
+    { // Material
         if (material_count >= 300)
+        {
+            pthread_mutex_unlock(&mutex_buffer);
             return;
+        }
         material_count++;
     }
 
     for (int i = 0; i < 6; i++)
     {
-        // controllo per evitare di riempire una riga già piena
         if (buffer[i][0] != 0 && buffer[i][1] != 0 && buffer[i][2] != 0)
         {
             continue;
         }
 
-        // Trova la prima riga con una casella libera nella colonna corrispondente
         if (buffer[i][col_index] == 0)
         {
             first_empty_row = i;
@@ -65,15 +72,13 @@ void put(int weight, int range, int col_index)
 
     if (first_empty_row != -1)
     {
-        int random_num = rand() % (2 * range + 1) - range;        // Générer un nombre aléatoire entre -range et range
-        buffer[first_empty_row][col_index] = weight + random_num; // Ajouter le nombre aléatoire au poids
+        int random_num = rand() % (2 * range + 1) - range;
+        buffer[first_empty_row][col_index] = weight + random_num;
 
         if (buffer[first_empty_row][0] != 0 && buffer[first_empty_row][1] != 0 && buffer[first_empty_row][2] != 0)
         {
-            // Peso totale su colonna 3
             buffer[first_empty_row][3] = buffer[first_empty_row][0] + buffer[first_empty_row][1] + buffer[first_empty_row][2];
 
-            // Tipo di convoi che entra e numero
             pthread_mutex_lock(&mutex_convoi_id);
             buffer[first_empty_row][4] = ++convoi_id;
             pthread_mutex_unlock(&mutex_convoi_id);
@@ -81,33 +86,26 @@ void put(int weight, int range, int col_index)
             if (buffer[first_empty_row][3] < 10001)
             {
                 sem_post(&sem_plane);
-                int sem_value;
-                sem_getvalue(&sem_plane, &sem_value);
-                printf("Plane sem: %d\n", sem_value);
             }
             else if (buffer[first_empty_row][3] > 10001 && buffer[first_empty_row][3] < 30001)
             {
                 sem_post(&sem_truck);
-                int sem_value;
-                sem_getvalue(&sem_truck, &sem_value);
-                printf("Truck sem: %d\n", sem_value);
             }
             else if (buffer[first_empty_row][3] > 30001)
             {
                 sem_post(&sem_boat);
-                int sem_value;
-                sem_getvalue(&sem_boat, &sem_value);
-                printf("Boat sem: %d\n", sem_value);
             }
         }
     }
     pthread_mutex_unlock(&mutex_buffer);
 }
-void get(void *arg)
+
+void get(const char *name)
 {
-    char *name = (char *)arg;
     int convoi_nb = 201;
     int tmp_i = -1;
+
+    pthread_mutex_lock(&mutex_buffer);
 
     // Find the appropriate convoy
     for (int i = 0; i < 6; i++)
@@ -147,16 +145,18 @@ void get(void *arg)
         // Increase the count of processed convoys
         pthread_mutex_lock(&mutex_convois_processed);
         convois_processed++;
-        printf("Convoi terminati: %d", convois_processed);
+        printf("\n######################\nConvoi terminati: %d\n######################\n", convois_processed);
         pthread_mutex_unlock(&mutex_convois_processed);
     }
+
+    pthread_mutex_unlock(&mutex_buffer);
 }
 
-// Aggiorna la funzione consumer
+// Consumer function continues here
 void *consumer(void *arg)
 {
-    char *name = (char *)arg;
-    while (true)
+    const char *name = (const char *)arg;
+    while (!done)
     {
         if (strcmp(name, "plane") == 0)
         {
@@ -177,6 +177,7 @@ void *consumer(void *arg)
             printf("Boat is going\n");
         }
     }
+    return NULL;
 }
 
 // Aggiorna la funzione producer
@@ -186,10 +187,14 @@ void *producer(void *arg)
 
     while (true)
     {
+        printf("Starting %s producer\n", name);
         pthread_mutex_lock(&mutex_convois_processed);
         if (convois_processed >= 200)
         {
+            done = true;
+            printf("NUMERO MASSIMO RAGGIUNTO\n");
             pthread_mutex_unlock(&mutex_convois_processed);
+            // Destruction des sémaphores
             break;
         }
 
@@ -218,11 +223,8 @@ void *producer(void *arg)
             printf("\n");
         }
         printf("\n\n");
+        printf("Exiting %s producer\n", name);
     }
-
-    printf("Starting %s producer\n", name);
-    // Code de production ici
-    printf("Exiting %s producer\n", name);
 
     // Libération du sémaphore approprié
     if (strcmp(name, "driver") == 0)
