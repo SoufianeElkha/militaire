@@ -366,27 +366,39 @@ int main()
             exit(EXIT_FAILURE);
         }
 
+        pthread_create(&producer_threads[i], NULL, producer, (void *)producer_names[i]);
+    }
+    // Initialize semaphores and create producer and consumer threads
+    for (int i = 0; i < NUM_CONSUMERS; ++i)
+    {
+
         if (sem_init(consumer_sems[i], 0, 0) != 0)
         {
             printf("Error initializing semaphore for %s consumer\n", consumer_names[i]);
             exit(EXIT_FAILURE);
         }
-
-        pthread_create(&producer_threads[i], NULL, producer, (void *)producer_names[i]);
         pthread_create(&consumer_threads[i], NULL, consumer, (void *)consumer_names[i]);
     }
 
-    // Join producer and consumer threads
+    // Join producer threads
     for (int i = 0; i < NUM_PRODUCERS; ++i)
     {
         pthread_join(producer_threads[i], NULL);
+    }
+    // Join consumer threads
+    for (int i = 0; i < NUM_CONSUMERS; ++i)
+    {
         pthread_join(consumer_threads[i], NULL);
     }
 
-    // Destroy semaphores
+    // Destroy semaphores producer
     for (int i = 0; i < NUM_PRODUCERS; ++i)
     {
         sem_destroy(producer_sems[i]);
+    }
+    // Destroy semaphores consumer
+    for (int i = 0; i < NUM_CONSUMERS; ++i)
+    {
         sem_destroy(consumer_sems[i]);
     }
 
