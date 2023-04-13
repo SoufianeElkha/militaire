@@ -6,9 +6,11 @@
 #include <stdbool.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 
 #define NUM_PRODUCERS 3
 #define NUM_CONSUMERS 3
+#define NUM_CONVOIS 200
 
 sem_t sem_driver, sem_military, sem_material;
 sem_t sem_plane, sem_truck, sem_boat;
@@ -34,6 +36,8 @@ int convoi_id = 0;
 int convois_processed = 0;
 int buffer[6][5] = {0};
 bool done = false;
+int consumers_done = 0;
+pthread_mutex_t mutex_consumers_done;
 
 void put(int weight, int range, int col_index)
 {
@@ -43,7 +47,7 @@ void put(int weight, int range, int col_index)
     usleep(1000 * timeToWait);
     pthread_mutex_lock(&mutex_buffer);
 
-    if (counts[col_index] >= 300)
+    if (counts[col_index] >= 218)
     {
         pthread_mutex_unlock(&mutex_buffer);
         return;
@@ -94,7 +98,6 @@ void put(int weight, int range, int col_index)
 
 void get(const char *name)
 {
-    int convoi_nb = 201;
     int tmp_i = -1;
     int lower_bound, upper_bound;
 
@@ -111,7 +114,7 @@ void get(const char *name)
     else if (strcmp(name, "boat") == 0)
     {
         lower_bound = 30001;
-        upper_bound = 1e9;
+        upper_bound = INT_MAX;
     }
     else
     {
@@ -127,9 +130,8 @@ void get(const char *name)
         {
             int current_weight = buffer[i][3];
             int current_convoi_nb = buffer[i][4];
-            if (current_weight >= lower_bound && current_weight < upper_bound && current_convoi_nb < convoi_nb && current_convoi_nb > 0)
+            if (current_weight >= lower_bound && current_weight < upper_bound && current_convoi_nb <= NUM_CONVOIS && current_convoi_nb > 0)
             {
-                convoi_nb = current_convoi_nb;
                 tmp_i = i;
             }
         }
@@ -156,7 +158,6 @@ void get(const char *name)
     pthread_mutex_unlock(&mutex_buffer);
 }
 
-// Consumer function continues here
 void *consumer(void *arg)
 {
     const char *name = (const char *)arg;
@@ -193,7 +194,70 @@ void *consumer(void *arg)
         }
 
         sem_wait(semaphore);
-        get(c_name);
+
+        // Acquire the mutex before accessing the buffer
+        pthread_mutex_lock(&mutex_buffer);
+
+        // Find the appropriate convoy
+        int tmp_i = -1;
+        int lower_bound, upper_bound;
+
+        if (strcmp(c_name, "plane") == 0)
+        {
+            lower_bound = 0;
+            upper_bound = 10001;
+        }
+        else if (strcmp(c_name, "truck") == 0)
+        {
+            lower_bound = 10001;
+            upper_bound = 30001;
+        }
+        else if (strcmp(c_name, "boat") == 0)
+        {
+            lower_bound = 30001;
+            upper_bound = INT_MAX;
+        }
+        else
+        {
+            pthread_mutex_unlock(&mutex_buffer);
+            return NULL;
+        }
+
+        for (int i = 0; i < 6; i++)
+        {
+            if (buffer[i][0] != 0 && buffer[i][1] != 0 && buffer[i][2] != 0) // Check if the row is complete
+            {
+                int current_weight = buffer[i][3];
+                int current_convoi_nb = buffer[i][4];
+                if (current_weight >= lower_bound && current_weight < upper_bound && current_convoi_nb <= NUM_CONVOIS && current_convoi_nb > 0)
+                {
+                    tmp_i = i;
+                    break;
+                }
+            }
+        }
+
+        // Check if a matching convoy was found
+        if (tmp_i != -1)
+        {
+            // Clear the buffer for the convoy
+            memset(buffer[tmp_i], 0, 5 * sizeof(int));
+
+            // Release the semaphores
+            sem_post(&sem_driver);
+            sem_post(&sem_military);
+            sem_post(&sem_material);
+
+            // Increase the count of processed convoys
+            pthread_mutex_lock(&mutex_convois_processed);
+            convois_processed++;
+            printf("\n######################\nConvoi terminati: %d\n######################\n", convois_processed);
+            pthread_mutex_unlock(&mutex_convois_processed);
+        }
+
+        // Release the mutex after accessing the buffer
+        pthread_mutex_unlock(&mutex_buffer);
+
         printf("%s is going\n", c_name);
     }
 
@@ -229,8 +293,9 @@ void *producer(void *arg)
     while (true)
     {
         printf("Starting %s producer\n", name);
+
         pthread_mutex_lock(&mutex_convois_processed);
-        if (convois_processed >= 200)
+        if (convois_processed >= NUM_CONVOIS)
         {
             done = true;
             printf("NUMERO MASSIMO RAGGIUNTO\n");
@@ -282,6 +347,7 @@ int main()
     pthread_mutex_init(&mutex_convoi_id, NULL);
     pthread_mutex_init(&mutex_convois_processed, NULL);
     pthread_mutex_init(&mutex_buffer, NULL);
+    pthread_mutex_init(&mutex_consumers_done, NULL);
 
     sem_t *producer_sems[NUM_PRODUCERS] = {&sem_driver, &sem_military, &sem_material};
     sem_t *consumer_sems[NUM_CONSUMERS] = {&sem_plane, &sem_truck, &sem_boat};
@@ -327,6 +393,7 @@ int main()
     pthread_mutex_destroy(&mutex_convoi_id);
     pthread_mutex_destroy(&mutex_convois_processed);
     pthread_mutex_destroy(&mutex_buffer);
+    pthread_mutex_destroy(&mutex_consumers_done);
 
     printf("\n#############################################################################\nAll producer threads have exited\n");
 
