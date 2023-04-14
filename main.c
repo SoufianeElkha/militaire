@@ -39,6 +39,18 @@ bool done = false;
 int consumers_done = 0;
 pthread_mutex_t mutex_consumers_done;
 
+void print_buffer()
+{
+    printf("PILOTE-MILITARY-MATERIAL-TOTAL-NUMERO\n");
+    for (int i = 0; i < 6; i++)
+    {
+        for (int j = 0; j < 5; j++)
+            printf("%7d", buffer[i][j]);
+        printf("\n");
+    }
+    printf("\n\n");
+}
+
 void put(int weight, int range, int col_index)
 {
     int first_empty_row = -1;
@@ -47,7 +59,7 @@ void put(int weight, int range, int col_index)
     usleep(1000 * timeToWait);
     pthread_mutex_lock(&mutex_buffer);
 
-    if (counts[col_index] >= 218)
+    if (done) //(counts[col_index] >= 218)
     {
         pthread_mutex_unlock(&mutex_buffer);
         return;
@@ -158,76 +170,6 @@ void get(const char *name)
     pthread_mutex_unlock(&mutex_buffer);
 }
 
-void *consumer(void *arg)
-{
-    const char *name = (const char *)arg;
-    consumer_type c_type;
-
-    if (strcmp(name, "plane") == 0)
-        c_type = PLANE;
-    else if (strcmp(name, "truck") == 0)
-        c_type = TRUCK;
-    else if (strcmp(name, "boat") == 0)
-        c_type = BOAT;
-    else
-        return NULL;
-
-    while (!done)
-    {
-        sem_t *semaphore;
-        const char *c_name;
-
-        switch (c_type)
-        {
-        case PLANE:
-            semaphore = &sem_plane;
-            c_name = "plane";
-            break;
-        case TRUCK:
-            semaphore = &sem_truck;
-            c_name = "truck";
-            break;
-        case BOAT:
-            semaphore = &sem_boat;
-            c_name = "boat";
-            break;
-        }
-
-        if (convois_processed >= NUM_CONVOIS)
-        {
-            done = true;
-            printf("NUMERO MASSIMO RAGGIUNTO\n");
-            break;
-        }
-
-        sem_wait(semaphore);
-        get(c_name);
-
-        // Release the mutex after accessing the buffer
-        pthread_mutex_unlock(&mutex_buffer);
-
-        printf("%s is going\n", c_name);
-    }
-    // Release the appropriate semaphore
-    sem_post(&sem_plane);
-    sem_post(&sem_truck);
-    sem_post(&sem_boat);
-
-    return NULL;
-}
-
-void print_buffer()
-{
-    printf("PILOTE-MILITARY-MATERIAL-TOTAL-NUMERO\n");
-    for (int i = 0; i < 6; i++)
-    {
-        for (int j = 0; j < 5; j++)
-            printf("%7d", buffer[i][j]);
-        printf("\n");
-    }
-    printf("\n\n");
-}
-
 void *producer(void *arg)
 {
     char *name = (char *)arg;
@@ -288,6 +230,64 @@ void *producer(void *arg)
     sem_post(&sem_driver);
     sem_post(&sem_military);
     sem_post(&sem_material);
+    return NULL;
+}
+
+void *consumer(void *arg)
+{
+    const char *name = (const char *)arg;
+    consumer_type c_type;
+
+    if (strcmp(name, "plane") == 0)
+        c_type = PLANE;
+    else if (strcmp(name, "truck") == 0)
+        c_type = TRUCK;
+    else if (strcmp(name, "boat") == 0)
+        c_type = BOAT;
+    else
+        return NULL;
+
+    while (!done)
+    {
+        sem_t *semaphore;
+        const char *c_name;
+
+        switch (c_type)
+        {
+        case PLANE:
+            semaphore = &sem_plane;
+            c_name = "plane";
+            break;
+        case TRUCK:
+            semaphore = &sem_truck;
+            c_name = "truck";
+            break;
+        case BOAT:
+            semaphore = &sem_boat;
+            c_name = "boat";
+            break;
+        }
+
+        if (convois_processed >= NUM_CONVOIS)
+        {
+            done = true;
+            printf("NUMERO MASSIMO RAGGIUNTO\n");
+            break;
+        }
+
+        sem_wait(semaphore);
+        get(c_name);
+
+        // Release the mutex after accessing the buffer
+        pthread_mutex_unlock(&mutex_buffer);
+
+        printf("%s is going\n", c_name);
+    }
+    // Release the appropriate semaphore
+    sem_post(&sem_plane);
+    sem_post(&sem_truck);
+    sem_post(&sem_boat);
+
     return NULL;
 }
 
@@ -356,7 +356,7 @@ int main()
     pthread_mutex_destroy(&mutex_buffer);
     pthread_mutex_destroy(&mutex_consumers_done);
 
-    printf("\n#############################################################################\nAll producer threads have exited\n");
+    printf("\nAll producer threads have exited\n");
 
     return 0;
 }
