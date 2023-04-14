@@ -16,7 +16,7 @@ sem_t sem_driver, sem_military, sem_material;
 sem_t sem_plane, sem_truck, sem_boat;
 
 pthread_mutex_t mutex_convoi_id, mutex_convois_processed;
-pthread_mutex_t mutex_buffer;
+pthread_mutex_t mutex_buffer, mutex_consumers_done;
 
 typedef enum
 {
@@ -32,12 +32,14 @@ typedef enum
     BOAT
 } consumer_type;
 
-int convoi_id = 0;
 int convois_processed = 0;
+int convoi_id = 0;
+int plane_count = 0;
+int truck_count = 0;
+int boat_count = 0;
 int buffer[6][5] = {0};
 bool done = false;
 int consumers_done = 0;
-pthread_mutex_t mutex_consumers_done;
 
 void print_buffer()
 {
@@ -117,16 +119,19 @@ void get(const char *name)
     {
         lower_bound = 0;
         upper_bound = 10001;
+        plane_count++;
     }
     else if (strcmp(name, "truck") == 0)
     {
         lower_bound = 10001;
         upper_bound = 30001;
+        truck_count++;
     }
     else if (strcmp(name, "boat") == 0)
     {
         lower_bound = 30001;
         upper_bound = INT_MAX;
+        boat_count++;
     }
     else
     {
@@ -212,16 +217,18 @@ void *producer(void *arg)
             break;
         }
 
-        if (convois_processed >= NUM_CONVOIS)
+        if (convois_processed > NUM_CONVOIS - 1)
         {
             done = true;
-
+            printf("1 NUMERO MASSIMO RAGGIUNTO\n");
             break;
         }
+        else
+        {
 
-        sem_wait(semaphore);
-        put(weight, range, col_index);
-
+            sem_wait(semaphore);
+            put(weight, range, col_index);
+        }
         print_buffer();
         printf("Exiting %s producer\n", name);
     }
@@ -249,6 +256,7 @@ void *consumer(void *arg)
 
     while (!done)
     {
+
         sem_t *semaphore;
         const char *c_name;
 
@@ -267,23 +275,26 @@ void *consumer(void *arg)
             c_name = "boat";
             break;
         }
-
-        if (convois_processed >= NUM_CONVOIS)
+        
+        if (convois_processed > NUM_CONVOIS - 1)
         {
+            pthread_mutex_lock(&mutex_consumers_done);
             done = true;
-            printf("NUMERO MASSIMO RAGGIUNTO\n");
+            pthread_mutex_unlock(&mutex_consumers_done);
+            printf("2 NUMERO MASSIMO RAGGIUNTO\n");
             break;
         }
-
-        sem_wait(semaphore);
-        get(c_name);
-
+        else
+        {
+            sem_wait(semaphore);
+            get(c_name);
+        }
+        
         // Release the mutex after accessing the buffer
         pthread_mutex_unlock(&mutex_buffer);
 
         printf("%s is going\n", c_name);
     }
-    // Release the appropriate semaphore
     sem_post(&sem_plane);
     sem_post(&sem_truck);
     sem_post(&sem_boat);
@@ -357,6 +368,10 @@ int main()
     pthread_mutex_destroy(&mutex_consumers_done);
 
     printf("\nAll producer threads have exited\n");
-
+    printf("Convoi eseguiti: %d\n", convois_processed);
+    printf("Plane partiti: %d\n", plane_count);
+    printf("Truck partiti: %d\n", truck_count);
+    printf("Boat partiti: %d\n", boat_count);
+    printf("Somma partiti ++ : %d\n", plane_count + truck_count + boat_count);
     return 0;
 }
