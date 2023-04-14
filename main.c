@@ -217,18 +217,31 @@ void *producer(void *arg)
             break;
         }
 
-        if (convois_processed > NUM_CONVOIS - 1)
+        if (convois_processed >= NUM_CONVOIS)
         {
+            pthread_mutex_lock(&mutex_consumers_done);
             done = true;
-            printf("1 NUMERO MASSIMO RAGGIUNTO\n");
+            pthread_mutex_unlock(&mutex_consumers_done);
+            printf("2 NUMERO MASSIMO RAGGIUNTO\n");
             break;
         }
         else
         {
-
             sem_wait(semaphore);
+
+            // Aggiungi questo controllo
+            pthread_mutex_lock(&mutex_convois_processed);
+            if (convois_processed >= NUM_CONVOIS)
+            {
+                pthread_mutex_unlock(&mutex_convois_processed);
+                sem_post(semaphore);
+                break;
+            }
+            pthread_mutex_unlock(&mutex_convois_processed);
+
             put(weight, range, col_index);
         }
+
         print_buffer();
         printf("Exiting %s producer\n", name);
     }
@@ -275,8 +288,8 @@ void *consumer(void *arg)
             c_name = "boat";
             break;
         }
-        
-        if (convois_processed > NUM_CONVOIS - 1)
+
+        if (convois_processed >= NUM_CONVOIS)
         {
             pthread_mutex_lock(&mutex_consumers_done);
             done = true;
@@ -287,9 +300,20 @@ void *consumer(void *arg)
         else
         {
             sem_wait(semaphore);
+
+            // Aggiungi questo controllo
+            pthread_mutex_lock(&mutex_convois_processed);
+            if (convois_processed >= NUM_CONVOIS)
+            {
+                pthread_mutex_unlock(&mutex_convois_processed);
+                sem_post(semaphore);
+                break;
+            }
+            pthread_mutex_unlock(&mutex_convois_processed);
+
             get(c_name);
         }
-        
+
         // Release the mutex after accessing the buffer
         pthread_mutex_unlock(&mutex_buffer);
 
