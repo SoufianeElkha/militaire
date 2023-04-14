@@ -1,7 +1,7 @@
 # Makefile to compile the main.c file
 
 CC=gcc
-CFLAGS=-Wall -Wextra -pedantic -std=c11 -lpthread
+CFLAGS=-Wall -Wextra -pedantic -std=c11 -lpthread -g
 
 all: main
 

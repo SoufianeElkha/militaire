@@ -1,0 +1,9 @@
+{
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/winkal/Desktop/pcu_tp4_militaire",
+            "binaryPath": "/home/winkal/Desktop/pcu_tp4_militaire/main",
+            "binaryArgs": []
+        }
+    ]
+}
