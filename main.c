@@ -310,12 +310,11 @@ void *consumer(void *arg)
                 break;
             }
             pthread_mutex_unlock(&mutex_convois_processed);
-
             get(c_name);
         }
 
         // Release the mutex after accessing the buffer
-        pthread_mutex_unlock(&mutex_buffer);
+        // pthread_mutex_unlock(&mutex_buffer);
 
         printf("%s is going\n", c_name);
     }
@@ -351,16 +350,13 @@ int main()
         }
 
         pthread_create(&producer_threads[i], NULL, producer, (void *)producer_names[i]);
-    }
-    // Initialize semaphores and create producer and consumer threads
-    for (int i = 0; i < NUM_CONSUMERS; ++i)
-    {
 
         if (sem_init(consumer_sems[i], 0, 0) != 0)
         {
             printf("Error initializing semaphore for %s consumer\n", consumer_names[i]);
             exit(EXIT_FAILURE);
         }
+
         pthread_create(&consumer_threads[i], NULL, consumer, (void *)consumer_names[i]);
     }
 
