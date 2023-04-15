@@ -61,6 +61,28 @@ void print_hangar()
     }
     printf("\n\n");
 }
+// Global array to hold the counts of drivers, military personnel, and materials
+int counts[3] = {0, 0, 0}; // 0: driver_count, 1: military_count, 2: material_count
+
+// Find the first empty row in the hangar for the current column
+int find_first_empty_row(int col_index)
+{
+    for (int i = 0; i < 6; i++)
+        if (hangar[i][col_index] == 0)
+            return i;
+    return -1;
+}
+
+// Signal the appropriate semaphore based on the total weight
+void signal_semaphore(int total_weight)
+{
+    if (total_weight < 10001)
+        sem_post(&sem_plane); // Signal that a plane is available
+    else if (total_weight > 10001 && total_weight < 30001)
+        sem_post(&sem_truck); // Signal that a truck is available
+    else if (total_weight > 30001)
+        sem_post(&sem_boat); // Signal that a boat is available
+}
 
 /// @brief Function to place an item in the hangar
 /// @param weight
@@ -68,13 +90,6 @@ void print_hangar()
 /// @param col_index
 void put(int weight, int range, int col_index)
 {
-    int first_empty_row = -1; // Initialize first empty row as -1
-    // Array to hold the counts of drivers, military personnel, and materials
-    static int counts[3] = {0, 0, 0}; // 0: driver_count, 1: military_count, 2: material_count
-
-    // int timeToWait = (rand() % 2 == 0) ? 8 : 12; // Randomly select a wait time of either 8 or 12
-    // usleep(1000 * timeToWait);                   // Sleep for the randomly selected wait time in microseconds
-
     pthread_mutex_lock(&mutex_hangar); // Lock the mutex for the hangar
 
     // Check if the count for the current column has reached its limit
@@ -83,20 +98,9 @@ void put(int weight, int range, int col_index)
         pthread_mutex_unlock(&mutex_hangar); // Unlock the mutex and return
         return;
     }
-    counts[col_index]++; // Increment the count for the current column
 
-    // Find the first empty row in the hangar for the current column
-    for (int i = 0; i < 6; i++)
-    {
-        if (hangar[i][0] == 0 || hangar[i][1] == 0 || hangar[i][2] == 0)
-        {
-            if (hangar[i][col_index] == 0)
-            {
-                first_empty_row = i;
-                break;
-            }
-        }
-    }
+    counts[col_index]++; // Increment the count for the current column
+    int first_empty_row = find_first_empty_row(col_index);
 
     // If an empty row is found
     if (first_empty_row != -1)
@@ -118,60 +122,40 @@ void put(int weight, int range, int col_index)
             hangar[first_empty_row][4] = ++convoi_id;
             // Unlock the mutex for convoi_id
             pthread_mutex_unlock(&mutex_convoi_id);
-
-            // Determine the type of transportation for the current row based on the total weight
-            if (hangar[first_empty_row][3] < 10001)
-            {
-                sem_post(&sem_plane); // Signal that a plane is available
-            }
-            else if (hangar[first_empty_row][3] > 10001 && hangar[first_empty_row][3] < 30001)
-            {
-                sem_post(&sem_truck); // Signal that a truck is available
-            }
-            else if (hangar[first_empty_row][3] > 30001)
-            {
-                sem_post(&sem_boat); // Signal that a boat is available
-            }
+            // Signal the appropriate semaphore based on the total weight
+            signal_semaphore(hangar[first_empty_row][3]);
         }
     }
     // Unlock the mutex for the hangar
     pthread_mutex_unlock(&mutex_hangar);
 }
 
-/// @brief Function to retrieve and process a convoy based on its transportation type (plane, truck, or boat)
-/// @param name
-void get(const char *name)
+// Helper function to set bounds and increment counts based on the transportation type
+void set_bounds_and_increment_counts(const char *name, int *lower_bound, int *upper_bound)
 {
-    int tmp = -1;                 // Initialize temporary index as -1
-    int lower_bound, upper_bound; // Declare lower and upper bounds for transportation type
-
-    // Set the bounds and increment counts based on the transportation type
     if (strcmp(name, "plane") == 0)
     {
-        lower_bound = 0;
-        upper_bound = 10001;
+        *lower_bound = 0;
+        *upper_bound = 10001;
         plane_count++;
     }
     else if (strcmp(name, "truck") == 0)
     {
-        lower_bound = 10001;
-        upper_bound = 30001;
+        *lower_bound = 10001;
+        *upper_bound = 30001;
         truck_count++;
     }
     else if (strcmp(name, "boat") == 0)
     {
-        lower_bound = 30001;
-        upper_bound = INT_MAX;
+        *lower_bound = 30001;
+        *upper_bound = INT_MAX;
         boat_count++;
     }
-    else
-    {
-        return; // Return if the transportation type is not recognized
-    }
+}
 
-    pthread_mutex_lock(&mutex_hangar); // Lock the mutex for the hangar
-
-    // Find the appropriate convoy
+// Helper function to find the appropriate convoy
+int find_appropriate_convoy(int lower_bound, int upper_bound)
+{
     for (int i = 0; i < 6; i++)
     {
         // Check if the row is complete
@@ -182,16 +166,29 @@ void get(const char *name)
             // Check if the convoy falls within the bounds for the given transportation type
             if (current_weight >= lower_bound && current_weight < upper_bound && current_convoi_nb <= NUM_CONVOIS && current_convoi_nb > 0)
             {
-                tmp = i; // Store the index of the matching convoy
+                return i; // Return the index of the matching convoy
             }
         }
     }
+    return -1;
+}
+
+/// @brief Function to retrieve and process a convoy based on its transportation type (plane, truck, or boat)
+/// @param name
+void get(const char *name)
+{
+    int lower_bound, upper_bound; // Declare lower and upper bounds for transportation type
+    set_bounds_and_increment_counts(name, &lower_bound, &upper_bound);
+
+    pthread_mutex_lock(&mutex_hangar); // Lock the mutex for the hangar
+
+    int matching_convoy_index = find_appropriate_convoy(lower_bound, upper_bound);
 
     // Check if a matching convoy was found
-    if (tmp != -1)
+    if (matching_convoy_index != -1)
     {
         // Clear the hangar for the convoy
-        memset(hangar[tmp], 0, 5 * sizeof(int));
+        memset(hangar[matching_convoy_index], 0, 5 * sizeof(int));
 
         // Release the semaphores
         sem_post(&sem_driver);
