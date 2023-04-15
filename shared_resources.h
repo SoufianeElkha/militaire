@@ -5,11 +5,7 @@
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
-#include <time.h>
-#include <unistd.h>
-#include <limits.h>
 
 // Define constants for the number of producers, consumers, and convoys
 #define NUM_PRODUCERS 3

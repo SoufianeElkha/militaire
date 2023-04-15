@@ -1,15 +1,5 @@
 #include "consumer.h"
 #include "shared_resources.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <string.h>
-#include <stdbool.h>
-#include <time.h>
-#include <unistd.h>
-#include <limits.h>
-
 
 /// @brief Function to retrieve and process a convoy based on its transportation type (plane, truck, or boat)
 /// @param name

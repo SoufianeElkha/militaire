@@ -69,7 +69,7 @@ int main()
     pthread_t consumer_threads[NUM_CONSUMERS];
 
     // Initialize semaphores and create producer and consumer threads
-    for (int i = 0; i < NUM_PRODUCERS; ++i)
+    for (int i = 0; i < NUM_PRODUCERS; i++)
     {
         // Initialize producer semaphore
         if (sem_init(producer_sems[i], 0, 6) != 0)
@@ -103,7 +103,7 @@ int main()
     }
 
     // Join producer and consumer threads
-    for (int i = 0; i < NUM_PRODUCERS; ++i)
+    for (int i = 0; i < NUM_PRODUCERS; i++)
     {
         int producer_join_result = pthread_join(producer_threads[i], NULL);
         if (producer_join_result != 0)
@@ -121,11 +121,13 @@ int main()
     }
 
     // Destroy producer and consumer semaphores
-    for (int i = 0; i < NUM_PRODUCERS; ++i)
-    {
-        sem_destroy(producer_sems[i]);
-        sem_destroy(consumer_sems[i]);
-    }
+        sem_destroy(producer_sems[0]);
+        sem_destroy(producer_sems[1]);
+        sem_destroy(producer_sems[2]);
+        sem_destroy(consumer_sems[0]);
+        sem_destroy(consumer_sems[1]);
+        sem_destroy(consumer_sems[2]);
+
 
     // Destroy mutexes
     pthread_mutex_destroy(&mutex_convoi_id);

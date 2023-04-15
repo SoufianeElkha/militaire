@@ -1,13 +1,4 @@
 #include "shared_resources.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <string.h>
-#include <stdbool.h>
-#include <time.h>
-#include <unistd.h>
-#include <limits.h>
 
 // Global variables
 int convois_processed = 0;
