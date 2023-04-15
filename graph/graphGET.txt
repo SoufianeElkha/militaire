@@ -1,0 +1,20 @@
+graph TD
+A[consumer] --> B[Début de la boucle while !done]
+B --> C[Initialiser les variables]
+C --> D[Attendre le sémaphore approprié -> sem_plane, sem_truck, ou sem_boat]
+D --> E[Verrouiller mutex_hangar]
+E --> F[Trouver la ligne avec le convoi_id correspondant]
+F -->|Si la ligne est trouvée| G[Extraire les informations de la ligne]
+F -->|Sinon| H[Continuer la recherche]
+G --> I[Mettre les éléments correspondants de la ligne à 0]
+I --> J[Incrémenter convois_processed]
+J --> K[Incrémenter le compteur pour le type de consommateur spécifique plane_count, truck_count, ou boat_count]
+K --> L[Vérifier si le nombre maximal de convois a été atteint]
+L -->|Si le nombre maximal a été atteint| M[Verrouiller mutex_consumers_done]
+L -->|Sinon| Q[Continuer l'exécution]
+M --> N[Définir le drapeau 'done']
+N --> O[Déverrouiller mutex_consumers_done]
+O --> P[Déverrouiller mutex_hangar]
+P --> R[Libérer les sémaphores -> sem_driver, sem_military, et sem_material]
+Q --> P
+R --> B

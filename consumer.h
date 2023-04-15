@@ -4,10 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <string.h>
 #include <limits.h>
 #include <semaphore.h>
 #include <pthread.h>
-
+#include "shared_resources.h"
 // Define consumer types
 typedef enum
 {

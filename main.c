@@ -11,20 +11,9 @@
 #include "consumer.h"
 #include "shared_resources.h"
 
-// Function to print the current state of the hangar
-void print_hangar()
-{
-    printf("PILOTE-MILITARY-MATERIAL-TOTAL-NUMERO\n");
-    for (int i = 0; i < 6; i++)
-    {
-        for (int j = 0; j < 5; j++)
-            printf("%7d", hangar[i][j]);
-        printf("\n");
-    }
-    printf("\n\n");
-}
+
 /// @brief main
-/// @return
+/// @return 0
 int main()
 {
     // Initialize mutexes

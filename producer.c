@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <limits.h>
 
+
 /// @brief Function to place an item in the hangar
 /// @param weight
 /// @param range
@@ -19,9 +20,6 @@ void put(int weight, int range, int col_index)
     int first_empty_row = -1; // Initialize first empty row as -1
     // Array to hold the counts of drivers, military personnel, and materials
     static int counts[3] = {0, 0, 0}; // 0: driver_count, 1: military_count, 2: material_count
-
-    // int timeToWait = (rand() % 2 == 0) ? 8 : 12; // Randomly select a wait time of either 8 or 12
-    // usleep(1000 * timeToWait);                   // Sleep for the randomly selected wait time in microseconds
 
     pthread_mutex_lock(&mutex_hangar); // Lock the mutex for the hangar
 
@@ -157,8 +155,6 @@ void *producer(void *arg)
 
             put(weight, range, col_index); // Call the 'put' function with the calculated weight, range, and column index
         }
-
-        // print_hangar();                        // Print the hangar
     }
 
     // Release the appropriate semaphore

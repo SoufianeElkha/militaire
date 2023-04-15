@@ -5,5 +5,11 @@
             "binaryPath": "/home/winkal/Desktop/pcu_tp4_militaire/main",
             "binaryArgs": []
         }
-    ]
+    ],
+    "files.associations": {
+        "*.py": "python",
+        "shared_resources.h": "c",
+        "semaphore.h": "c",
+        "pthread.h": "c"
+    }
 }

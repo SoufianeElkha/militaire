@@ -3,7 +3,8 @@
 
 #include <semaphore.h>
 #include <pthread.h>
-
+#include <string.h>
+#include "shared_resources.h"
 // Define producer types
 typedef enum
 {
