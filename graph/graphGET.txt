@@ -1,20 +1,20 @@
 graph TD
-A[consumer] --> B[Début de la boucle while !done]
-B --> C[Initialiser les variables]
-C --> D[Attendre le sémaphore approprié -> sem_plane, sem_truck, ou sem_boat]
-D --> E[Verrouiller mutex_hangar]
-E --> F[Trouver la ligne avec le convoi_id correspondant]
-F -->|Si la ligne est trouvée| G[Extraire les informations de la ligne]
-F -->|Sinon| H[Continuer la recherche]
-G --> I[Mettre les éléments correspondants de la ligne à 0]
-I --> J[Incrémenter convois_processed]
-J --> K[Incrémenter le compteur pour le type de consommateur spécifique plane_count, truck_count, ou boat_count]
-K --> L[Vérifier si le nombre maximal de convois a été atteint]
-L -->|Si le nombre maximal a été atteint| M[Verrouiller mutex_consumers_done]
-L -->|Sinon| Q[Continuer l'exécution]
-M --> N[Définir le drapeau 'done']
-N --> O[Déverrouiller mutex_consumers_done]
+A[get const char *name ] --> B[Initialiser tmp à -1 et déclarer lower_bound et upper_bound]
+B --> C{{Vérifier le type de transport}}
+C -->|Si plane| D[Fixer les limites et incrémenter plane_count]
+C -->|Si truck| E[Fixer les limites et incrémenter truck_count]
+C -->|Si boat| F[Fixer les limites et incrémenter boat_count]
+C -->|Si non reconnu| G[(Retourner et quitter la fonction)]
+D --> H[Verrouiller mutex_hangar]
+E --> H
+F --> H
+H --> I[Trouver le convoi approprié]
+I --> J{{Vérifier si un convoi correspondant a été trouvé}}
+J -->|Si trouvé| K[Effacer le hangar pour le convoi]
+J -->|Si non trouvé| T[(Déverrouiller mutex_hangar et quitter la fonction)]
+K --> L[Libérer les sémaphores -> sem_driver, sem_military, et sem_material]
+L --> M[Verrouiller mutex_convois_processed]
+M --> N[Incrémenter convois_processed]
+N --> O[Déverrouiller mutex_convois_processed]
 O --> P[Déverrouiller mutex_hangar]
-P --> R[Libérer les sémaphores -> sem_driver, sem_military, et sem_material]
-Q --> P
-R --> B
+P --> Q[(Quitter la fonction)]

@@ -46,7 +46,7 @@ void put(int weight, int range, int col_index)
         {
             // Calculate the total weight for the current row
             hangar[first_empty_row][3] = hangar[first_empty_row][0] + hangar[first_empty_row][1] + hangar[first_empty_row][2];
-
+            // Determine the type of transportation for the current row based on the total weight
             // Lock the mutex for convoi_id
             pthread_mutex_lock(&mutex_convoi_id);
             // Increment and assign the convoi_id
@@ -54,7 +54,6 @@ void put(int weight, int range, int col_index)
             // Unlock the mutex for convoi_id
             pthread_mutex_unlock(&mutex_convoi_id);
 
-            // Determine the type of transportation for the current row based on the total weight
             if (hangar[first_empty_row][3] < 10001)
             {
                 sem_post(&sem_plane); // Signal that a plane is available
