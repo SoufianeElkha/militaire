@@ -17,9 +17,9 @@
 sem_t sem_driver, sem_military, sem_material;
 sem_t sem_plane, sem_truck, sem_boat;
 
-// Declare mutexes for convoy ID, number of convoys processed, buffer access, and consumers_done flag
+// Declare mutexes for convoy ID, number of convoys processed, hangar access, and consumers_done flag
 pthread_mutex_t mutex_convoi_id, mutex_convois_processed;
-pthread_mutex_t mutex_buffer, mutex_consumers_done;
+pthread_mutex_t mutex_hangar, mutex_consumers_done;
 
 // Define producer types
 typedef enum
@@ -37,32 +37,32 @@ typedef enum
     BOAT
 } consumer_type;
 
-// Declare global variables for convoy counts, convoy ID, and buffer
+// Declare global variables for convoy counts, convoy ID, and hangar
 int convois_processed = 0;
 int convoi_id = 0;
 int plane_count = 0;
 int truck_count = 0;
 int boat_count = 0;
-int buffer[6][5] = {0};
+int hangar[6][5] = {0};
 
 // Declare global variables for the done flag and consumers_done count
 bool done = false;
 int consumers_done = 0;
 
-// Function to print the current state of the buffer
-void print_buffer()
+// Function to print the current state of the hangar
+void print_hangar()
 {
     printf("PILOTE-MILITARY-MATERIAL-TOTAL-NUMERO\n");
     for (int i = 0; i < 6; i++)
     {
         for (int j = 0; j < 5; j++)
-            printf("%7d", buffer[i][j]);
+            printf("%7d", hangar[i][j]);
         printf("\n");
     }
     printf("\n\n");
 }
 
-/// @brief Function to place an item in the buffer
+/// @brief Function to place an item in the hangar
 /// @param weight
 /// @param range
 /// @param col_index
@@ -70,26 +70,27 @@ void put(int weight, int range, int col_index)
 {
     int first_empty_row = -1; // Initialize first empty row as -1
     // Array to hold the counts of drivers, military personnel, and materials
-    static int counts[3] = {0, 0, 0};            // 0: driver_count, 1: military_count, 2: material_count
-    int timeToWait = (rand() % 2 == 0) ? 8 : 12; // Randomly select a wait time of either 8 or 12
-    usleep(1000 * timeToWait);                   // Sleep for the randomly selected wait time in microseconds
+    static int counts[3] = {0, 0, 0}; // 0: driver_count, 1: military_count, 2: material_count
 
-    pthread_mutex_lock(&mutex_buffer); // Lock the mutex for the buffer
+    // int timeToWait = (rand() % 2 == 0) ? 8 : 12; // Randomly select a wait time of either 8 or 12
+    // usleep(1000 * timeToWait);                   // Sleep for the randomly selected wait time in microseconds
+
+    pthread_mutex_lock(&mutex_hangar); // Lock the mutex for the hangar
 
     // Check if the count for the current column has reached its limit
-    if (done) //(counts[col_index] >= 218)
+    if (done)
     {
-        pthread_mutex_unlock(&mutex_buffer); // Unlock the mutex and return
+        pthread_mutex_unlock(&mutex_hangar); // Unlock the mutex and return
         return;
     }
     counts[col_index]++; // Increment the count for the current column
 
-    // Find the first empty row in the buffer for the current column
+    // Find the first empty row in the hangar for the current column
     for (int i = 0; i < 6; i++)
     {
-        if (buffer[i][0] == 0 || buffer[i][1] == 0 || buffer[i][2] == 0)
+        if (hangar[i][0] == 0 || hangar[i][1] == 0 || hangar[i][2] == 0)
         {
-            if (buffer[i][col_index] == 0)
+            if (hangar[i][col_index] == 0)
             {
                 first_empty_row = i;
                 break;
@@ -102,46 +103,46 @@ void put(int weight, int range, int col_index)
     {
         // Generate a random number within the specified range
         int random_num = rand() % (2 * range + 1) - range;
-        // Assign the weight with the random number added to the buffer
-        buffer[first_empty_row][col_index] = weight + random_num;
+        // Assign the weight with the random number added to the hangar
+        hangar[first_empty_row][col_index] = weight + random_num;
 
         // Check if the current row is completely filled
-        if (buffer[first_empty_row][0] != 0 && buffer[first_empty_row][1] != 0 && buffer[first_empty_row][2] != 0)
+        if (hangar[first_empty_row][0] != 0 && hangar[first_empty_row][1] != 0 && hangar[first_empty_row][2] != 0)
         {
             // Calculate the total weight for the current row
-            buffer[first_empty_row][3] = buffer[first_empty_row][0] + buffer[first_empty_row][1] + buffer[first_empty_row][2];
+            hangar[first_empty_row][3] = hangar[first_empty_row][0] + hangar[first_empty_row][1] + hangar[first_empty_row][2];
 
             // Lock the mutex for convoi_id
             pthread_mutex_lock(&mutex_convoi_id);
             // Increment and assign the convoi_id
-            buffer[first_empty_row][4] = ++convoi_id;
+            hangar[first_empty_row][4] = ++convoi_id;
             // Unlock the mutex for convoi_id
             pthread_mutex_unlock(&mutex_convoi_id);
 
             // Determine the type of transportation for the current row based on the total weight
-            if (buffer[first_empty_row][3] < 10001)
+            if (hangar[first_empty_row][3] < 10001)
             {
                 sem_post(&sem_plane); // Signal that a plane is available
             }
-            else if (buffer[first_empty_row][3] > 10001 && buffer[first_empty_row][3] < 30001)
+            else if (hangar[first_empty_row][3] > 10001 && hangar[first_empty_row][3] < 30001)
             {
                 sem_post(&sem_truck); // Signal that a truck is available
             }
-            else if (buffer[first_empty_row][3] > 30001)
+            else if (hangar[first_empty_row][3] > 30001)
             {
                 sem_post(&sem_boat); // Signal that a boat is available
             }
         }
     }
-    // Unlock the mutex for the buffer
-    pthread_mutex_unlock(&mutex_buffer);
+    // Unlock the mutex for the hangar
+    pthread_mutex_unlock(&mutex_hangar);
 }
 
 /// @brief Function to retrieve and process a convoy based on its transportation type (plane, truck, or boat)
 /// @param name
 void get(const char *name)
 {
-    int tmp_i = -1;               // Initialize temporary index as -1
+    int tmp = -1;                 // Initialize temporary index as -1
     int lower_bound, upper_bound; // Declare lower and upper bounds for transportation type
 
     // Set the bounds and increment counts based on the transportation type
@@ -168,29 +169,29 @@ void get(const char *name)
         return; // Return if the transportation type is not recognized
     }
 
-    pthread_mutex_lock(&mutex_buffer); // Lock the mutex for the buffer
+    pthread_mutex_lock(&mutex_hangar); // Lock the mutex for the hangar
 
     // Find the appropriate convoy
     for (int i = 0; i < 6; i++)
     {
         // Check if the row is complete
-        if (buffer[i][0] != 0 && buffer[i][1] != 0 && buffer[i][2] != 0)
+        if (hangar[i][0] != 0 && hangar[i][1] != 0 && hangar[i][2] != 0)
         {
-            int current_weight = buffer[i][3];    // Get the current weight
-            int current_convoi_nb = buffer[i][4]; // Get the current convoy number
+            int current_weight = hangar[i][3];    // Get the current weight
+            int current_convoi_nb = hangar[i][4]; // Get the current convoy number
             // Check if the convoy falls within the bounds for the given transportation type
             if (current_weight >= lower_bound && current_weight < upper_bound && current_convoi_nb <= NUM_CONVOIS && current_convoi_nb > 0)
             {
-                tmp_i = i; // Store the index of the matching convoy
+                tmp = i; // Store the index of the matching convoy
             }
         }
     }
 
     // Check if a matching convoy was found
-    if (tmp_i != -1)
+    if (tmp != -1)
     {
-        // Clear the buffer for the convoy
-        memset(buffer[tmp_i], 0, 5 * sizeof(int));
+        // Clear the hangar for the convoy
+        memset(hangar[tmp], 0, 5 * sizeof(int));
 
         // Release the semaphores
         sem_post(&sem_driver);
@@ -200,11 +201,10 @@ void get(const char *name)
         // Increase the count of processed convoys
         pthread_mutex_lock(&mutex_convois_processed); // Lock the mutex for convois_processed
         convois_processed++;
-        printf("\n######################\nConvoi terminati: %d\n######################\n", convois_processed); // Print the number of convoys processed
-        pthread_mutex_unlock(&mutex_convois_processed);                                                        // Unlock the mutex for convois_processed
+        pthread_mutex_unlock(&mutex_convois_processed); // Unlock the mutex for convois_processed
     }
 
-    pthread_mutex_unlock(&mutex_buffer); // Unlock the mutex for the buffer
+    pthread_mutex_unlock(&mutex_hangar); // Unlock the mutex for the hangar
 }
 
 /// @brief Function for the producer threads (driver, military, and material)
@@ -260,7 +260,6 @@ void *producer(void *arg)
             pthread_mutex_lock(&mutex_consumers_done);
             done = true; // Set the 'done' flag
             pthread_mutex_unlock(&mutex_consumers_done);
-            printf("2 NUMERO MASSIMO RAGGIUNTO\n");
             break; // Break the loop
         }
         else
@@ -280,8 +279,7 @@ void *producer(void *arg)
             put(weight, range, col_index); // Call the 'put' function with the calculated weight, range, and column index
         }
 
-        print_buffer();                        // Print the buffer
-        printf("Exiting %s producer\n", name); // Print a message indicating the producer is exiting
+        // print_hangar();                        // Print the hangar
     }
 
     // Release the appropriate semaphore
@@ -338,7 +336,6 @@ void *consumer(void *arg)
             pthread_mutex_lock(&mutex_consumers_done);
             done = true; // Set the 'done' flag
             pthread_mutex_unlock(&mutex_consumers_done);
-            printf("2 NUMERO MASSIMO RAGGIUNTO\n");
             break; // Break the loop
         }
         else
@@ -357,8 +354,6 @@ void *consumer(void *arg)
 
             get(c_name); // Call the 'get' function with the consumer name
         }
-
-        printf("%s is going\n", c_name); // Print a message indicating the consumer is running
     }
 
     // Release the appropriate semaphore
@@ -379,28 +374,28 @@ int main()
     init_result = pthread_mutex_init(&mutex_convoi_id, NULL);
     if (init_result != 0)
     {
-        fprintf(stderr, "Error initializing mutex_convoi_id. Error code: %d\n", init_result);
+        printf("Error initializing mutex_convoi_id. Error code: %d\n", init_result);
         exit(EXIT_FAILURE);
     }
 
     init_result = pthread_mutex_init(&mutex_convois_processed, NULL);
     if (init_result != 0)
     {
-        fprintf(stderr, "Error initializing mutex_convois_processed. Error code: %d\n", init_result);
+        printf("Error initializing mutex_convois_processed. Error code: %d\n", init_result);
         exit(EXIT_FAILURE);
     }
 
-    init_result = pthread_mutex_init(&mutex_buffer, NULL);
+    init_result = pthread_mutex_init(&mutex_hangar, NULL);
     if (init_result != 0)
     {
-        fprintf(stderr, "Error initializing mutex_buffer. Error code: %d\n", init_result);
+        printf("Error initializing mutex_hangar. Error code: %d\n", init_result);
         exit(EXIT_FAILURE);
     }
 
     init_result = pthread_mutex_init(&mutex_consumers_done, NULL);
     if (init_result != 0)
     {
-        fprintf(stderr, "Error initializing mutex_consumers_done. Error code: %d\n", init_result);
+        printf("Error initializing mutex_consumers_done. Error code: %d\n", init_result);
         exit(EXIT_FAILURE);
     }
 
@@ -476,16 +471,15 @@ int main()
     // Destroy mutexes
     pthread_mutex_destroy(&mutex_convoi_id);
     pthread_mutex_destroy(&mutex_convois_processed);
-    pthread_mutex_destroy(&mutex_buffer);
+    pthread_mutex_destroy(&mutex_hangar);
     pthread_mutex_destroy(&mutex_consumers_done);
 
     // Print results
-    printf("\nAll producer threads have exited\n");
     printf("Convoys executed: %d\n", convois_processed);
     printf("Planes dispatched: %d\n", plane_count);
     printf("Trucks dispatched: %d\n", truck_count);
     printf("Boats dispatched: %d\n", boat_count);
-    printf("Total dispatched: %d\n", plane_count + truck_count + boat_count);
+    printf("Total Planes + Trucks + Boats dispatched: %d\n", plane_count + truck_count + boat_count);
 
     return 0;
 }
