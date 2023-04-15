@@ -7,9 +7,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <limits.h>
-#include "producer.h"
-#include "consumer.h"
-#include "shared_resources.h"
+#include "header/producer.h"
+#include "header/consumer.h"
+#include "header/shared_resources.h"
 
 /// @brief main
 /// @return 0
