@@ -1,0 +1,28 @@
+rm -f main.o producer.o consumer.o shared_resources.o main
+gcc -Wall -Wextra -pedantic -std=c11 -lpthread -g -c main.c
+gcc -Wall -Wextra -pedantic -std=c11 -lpthread -g -c producer.c
+gcc -Wall -Wextra -pedantic -std=c11 -lpthread -g -c consumer.c
+gcc -Wall -Wextra -pedantic -std=c11 -lpthread -g -c shared_resources.c
+gcc -Wall -Wextra -pedantic -std=c11 -lpthread -g main.o producer.o consumer.o shared_resources.o -o main
+soufiane@sek:~/Bureau/PCO/pcu_tp4_militaire$ make run
+./main
+Convoys executed: 200
+Planes dispatched: 10
+Trucks dispatched: 74
+Boats dispatched: 116
+Total Planes + Trucks + Boats dispatched: 200
+soufiane@sek:~/Bureau/PCO/pcu_tp4_militaire$ make run
+./main
+Convoys executed: 200
+Planes dispatched: 16
+Trucks dispatched: 75
+Boats dispatched: 109
+Total Planes + Trucks + Boats dispatched: 200
+soufiane@sek:~/Bureau/PCO/pcu_tp4_militaire$ make run
+./main
+Convoys executed: 200
+Planes dispatched: 9
+Trucks dispatched: 74
+Boats dispatched: 117
+Total Planes + Trucks + Boats dispatched: 200
+soufiane@sek:~/Bureau/PCO/pcu_tp4_militaire$ make run

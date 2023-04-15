@@ -11,7 +11,6 @@
 #include "consumer.h"
 #include "shared_resources.h"
 
-
 /// @brief main
 /// @return 0
 int main()
@@ -110,13 +109,12 @@ int main()
     }
 
     // Destroy producer and consumer semaphores
-        sem_destroy(producer_sems[0]);
-        sem_destroy(producer_sems[1]);
-        sem_destroy(producer_sems[2]);
-        sem_destroy(consumer_sems[0]);
-        sem_destroy(consumer_sems[1]);
-        sem_destroy(consumer_sems[2]);
-
+    sem_destroy(producer_sems[0]);
+    sem_destroy(producer_sems[1]);
+    sem_destroy(producer_sems[2]);
+    sem_destroy(consumer_sems[0]);
+    sem_destroy(consumer_sems[1]);
+    sem_destroy(consumer_sems[2]);
 
     // Destroy mutexes
     pthread_mutex_destroy(&mutex_convoi_id);

@@ -1,6 +1,5 @@
 #include "consumer.h"
 
-
 /// @brief Function to retrieve and process a convoy based on its transportation type (plane, truck, or boat)
 /// @param name
 void get(const char *name)

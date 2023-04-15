@@ -10,6 +10,8 @@
         "*.py": "python",
         "shared_resources.h": "c",
         "semaphore.h": "c",
-        "pthread.h": "c"
+        "pthread.h": "c",
+        "limits.h": "c",
+        "stdbool.h": "c"
     }
 }
