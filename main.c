@@ -1,3 +1,10 @@
+/*
+    @author: Soufiane El kharmoudi
+    @date: 16-03-2024
+    @brief: tp4 military convoy
+    Implémenter un système de producteurs – consommateurs concurrents et asynchrones en respectant les contraintes de développement. 
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
